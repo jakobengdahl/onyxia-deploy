@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Issues a wildcard cert and sets it as default TLS in ingress-nginx.
+set -a; source .env; set +a
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-set -a; source "${ROOT_DIR}/.env"; set +a
-
-cat <<YAML | kubectl apply -f -
+kubectl -n "${NGINX_NS}" apply -f - <<EOF
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -17,30 +14,30 @@ spec:
     name: letsencrypt-prod-dns01
     kind: ClusterIssuer
   dnsNames:
-    - "${DNS_DOMAIN}"
-    - "*.${DNS_DOMAIN}"
-    - "*.user.${DNS_DOMAIN}"
-YAML
+    - ${DNS_DOMAIN}
+    - *.${DNS_DOMAIN}
+    - *.user.${DNS_DOMAIN}
+EOF
 
-echo "Waiting for wildcard certificate to become Ready..."
-for i in {1..36}; do
-  cond="$(kubectl -n "${NGINX_NS}" get certificate "${WILDCARD_SECRET}" \
-    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)"
-  [[ "${cond}" == "True" ]] && break
-  sleep 10
+echo "Waiting for certificate ${WILDCARD_SECRET} to be Ready..."
+for i in {1..60}; do
+  st="$(kubectl -n "${NGINX_NS}" get certificate "${WILDCARD_SECRET}" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)"
+  if [[ "${st}" == "True" ]]; then
+    echo "Certificate is Ready."
+    break
+  fi
+  sleep 5
 done
-kubectl -n "${NGINX_NS}" get certificate "${WILDCARD_SECRET}" -o wide
 
-helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-  -n "${NGINX_NS}" \
-  --reuse-values \
-  --set controller.extraArgs.default-ssl-certificate="${NGINX_NS}/${WILDCARD_SECRET}" \
-  --wait
-
-LB_IP="$(kubectl -n "${NGINX_NS}" get svc ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
-HOST="randomcheck.${DNS_DOMAIN}"
-if command -v openssl >/dev/null 2>&1; then
-  echo "Verifying certificate via s_client (SNI=${HOST})..."
-  printf '' | openssl s_client -connect "${LB_IP}:443" -servername "${HOST}" 2>/dev/null \
-    | openssl x509 -noout -subject -ext subjectAltName || true
+# NGINX default-ssl-certificate guard (if your 01-script didn’t already set it)
+if ! kubectl -n "${NGINX_NS}" get deploy ingress-nginx-controller -o jsonpath='{.spec.template.spec.containers[0].args}' | grep -q -- "--default-ssl-certificate=${NGINX_NS}/${WILDCARD_SECRET}"; then
+  echo "Patching ingress-nginx-controller to use ${NGINX_NS}/${WILDCARD_SECRET} as default SSL certificate..."
+  kubectl -n "${NGINX_NS}" patch deploy ingress-nginx-controller \
+    --type json -p="[{
+      \"op\":\"add\",
+      \"path\":\"/spec/template/spec/containers/0/args/-\",
+      \"value\":\"--default-ssl-certificate=${NGINX_NS}/${WILDCARD_SECRET}\"
+    }]"
+  kubectl -n "${NGINX_NS}" rollout restart deploy/ingress-nginx-controller
+  kubectl -n "${NGINX_NS}" rollout status deploy/ingress-nginx-controller --timeout=5m
 fi
