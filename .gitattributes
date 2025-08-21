@@ -1,0 +1,6 @@
+# Treat YAML as text (force LF), avoid CRLF surprises on Windows/macOS/Linux
+*.yml  text eol=lf
+*.yaml text eol=lf
+
+# Explicitly mark any local/rendered prod values as text
+values/values-prod*.yaml text eol=lf

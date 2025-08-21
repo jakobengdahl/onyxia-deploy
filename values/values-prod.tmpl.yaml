@@ -1,0 +1,37 @@
+# values/values-prod.tmpl.yaml
+# This file is a template. It is rendered by envsubst in deploy.sh.
+# No real domains or secrets are stored in Git.
+# Example placeholders:
+#   ONYXIA_HOST="onyxia.example.com"
+#   CATALOG_URL="https://<your-gh-username>.github.io/helm-charts-interactive-services/"
+#   CUSTOM_RESOURCES_URL="https://raw.githubusercontent.com/<your-gh-username>/onyxia-ui-content/main/custom-resources.json"
+
+web:
+  ingress:
+    hosts:
+      - host: "${ONYXIA_HOST}"
+  theme:
+    brand:
+      title: "SCB Onyxia Lab"
+      shortTitle: "SCB Lab"
+      logo:
+        # Optional brand assets; leave empty if not used
+        lightModeUrl: "${LOGO_LIGHT_URL}"
+        darkModeUrl:  "${LOGO_DARK_URL}"
+  env:
+    CUSTOM_RESOURCES: "${CUSTOM_RESOURCES_URL}"
+
+api:
+  ingress:
+    hosts:
+      - host: "${ONYXIA_HOST}"
+  catalogs:
+    - id: "interactive"
+      type: "helm"
+      location: "${CATALOG_URL}"   # Your GitHub Pages for the forked charts
+      name:
+        sv: "Standardtjänster för produktion"
+      status: "PROD"
+      description:
+        sv: "SCB:s standardiserade tjänster"
+    # Add more catalogs here if needed; keep all endpoints injected via env

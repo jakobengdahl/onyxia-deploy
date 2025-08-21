@@ -1,0 +1,13 @@
+# Local env (never commit)
+.env
+.envrc
+
+# Local or rendered values (keep prod details out of git)
+values/values-prod.local.yaml
+values/values-prod.rendered.yaml
+values/*.local.yaml
+
+# tmp files
+*.swp
+*.tmp
+.DS_Store

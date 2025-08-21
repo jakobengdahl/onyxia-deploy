@@ -1,0 +1,33 @@
+# values/values-base.yaml
+# Baseline values with no domains or URLs.
+# Ingress uses the nginx class and relies on the controller's default wildcard TLS certificate.
+# Do NOT put any real hostnames or secrets here.
+
+api:
+  ingress:
+    enabled: true
+    className: nginx
+    annotations: {}
+    hosts: []          # Filled by the prod template at deploy time
+    tls: []            # Empty = use controller default wildcard cert
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+  # Keep catalogs empty in base; they are injected in the prod template
+  catalogs: []
+
+web:
+  ingress:
+    enabled: true
+    className: nginx
+    annotations: {}
+    hosts: []          # Filled by the prod template at deploy time
+    tls: []            # Empty = use controller default wildcard cert
+  theme:
+    brand:
+      title: "SCB Onyxia"
+      shortTitle: "SCB"
+  env:
+    # Set via prod template (e.g. to your custom-resources.json)
+    CUSTOM_RESOURCES: ""
