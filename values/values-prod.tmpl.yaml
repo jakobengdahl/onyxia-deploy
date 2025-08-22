@@ -1,37 +1,68 @@
-# values/values-prod.tmpl.yaml
-# This file is a template. It is rendered by envsubst in deploy.sh.
-# No real domains or secrets are stored in Git.
-# Example placeholders:
-#   ONYXIA_HOST="onyxia.example.com"
-#   CATALOG_URL="https://<your-gh-username>.github.io/helm-charts-interactive-services/"
-#   CUSTOM_RESOURCES_URL="https://raw.githubusercontent.com/<your-gh-username>/onyxia-ui-content/main/custom-resources.json"
+# Rendered by envsubst -> values/values-prod.yaml
 
-web:
-  ingress:
-    hosts:
-      - host: "${ONYXIA_HOST}"
-  theme:
-    brand:
-      title: "SCB Onyxia Lab"
-      shortTitle: "SCB Lab"
-      logo:
-        # Optional brand assets; leave empty if not used
-        lightModeUrl: "${LOGO_LIGHT_URL}"
-        darkModeUrl:  "${LOGO_DARK_URL}"
-  env:
-    CUSTOM_RESOURCES: "${CUSTOM_RESOURCES_URL}"
+# Global ingress behavior
+global:
+  # IngressClass used by the chart's ingresses
+  ingressClassName: nginx
 
-api:
-  ingress:
-    hosts:
-      - host: "${ONYXIA_HOST}"
-  catalogs:
-    - id: "interactive"
-      type: "helm"
-      location: "${CATALOG_URL}"   # Your GitHub Pages for the forked charts
-      name:
-        sv: "Standardtjänster för produktion"
-      status: "PROD"
-      description:
-        sv: "SCB:s standardiserade tjänster"
-    # Add more catalogs here if needed; keep all endpoints injected via env
+# Onyxia chart values (web + api)
+onyxia:
+  web:
+    # Public hostname for the UI
+    host: ${ONYXIA_HOST}
+
+    # Ingress for the UI
+    ingress:
+      enabled: true
+      className: nginx
+      annotations:
+        nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+        nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      hosts:
+        - host: ${ONYXIA_HOST}
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: wildcard-lab-tls
+          hosts:
+            - ${ONYXIA_HOST}
+
+    # Environment fed to the UI container to point at your catalog
+    # and your custom content (theme, pages).
+    extraEnv:
+      - name: CATALOG_URL
+        value: ${CATALOG_URL}
+      - name: CUSTOM_RESOURCES_URL
+        value: ${CUSTOM_RESOURCES_URL}
+
+    # Optional UI tweaks shown as example labels/headings
+    ui:
+      # These keys are merged into the UI config (kept generic on purpose).
+      extraConfig:
+        catalogLabels:
+          productionServices: "Standardtjänster för produktion"
+          dataAndMetadata: "Data- och metadatahantering"
+        homepage:
+          title: "SCB BoA-plattform"
+          gettingStartedSlug: "getting-started-scb-boa"  # markdown filename (without .md) in your onyxia-ui-content repo
+
+  api:
+    # Ingress for the API (served under the same host on /api)
+    ingress:
+      enabled: true
+      className: nginx
+      annotations:
+        nginx.ingress.kubernetes.io/rewrite-target: /$1
+      hosts:
+        - host: ${ONYXIA_HOST}
+          paths:
+            - path: /api(/|$)(.*)
+              pathType: Prefix
+      tls:
+        - secretName: wildcard-lab-tls
+          hosts:
+            - ${ONYXIA_HOST}
+
+    # If the chart exposes env for API, you can add overrides here
+    # extraEnv: []
